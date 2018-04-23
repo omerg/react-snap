@@ -23,6 +23,7 @@ const defaultOptions = {
   concurrency: 4,
   include: ["/"],
   exclude: [],
+  pdf: [],
   sitemap: false,
   userAgent: "ReactSnap",
   // 4 params below will be refactored to one: `puppeteer: {}`
@@ -460,6 +461,16 @@ const saveAsPng = ({ page, filePath, options, route }) => {
   return page.screenshot({ path: screenshotPath });
 };
 
+const saveAsPdf = async ({ page, route, destinationDir, options: customOptions }) => {
+  const defaultOptions = {
+    printBackground: true,
+    path: `${destinationDir}${route}.pdf`,
+    format: "A4"
+  };
+  const options = Object.assign({}, defaultOptions, customOptions);
+  await page.pdf(options);
+};
+
 const buildSitemap = routes => {
   const domain = homepage.replace(/\/$/, '')
   return `
@@ -647,10 +658,23 @@ const run = async userOptions => {
 
       const routePath = route.replace(publicPath, "");
       const filePath = path.join(destinationDir, routePath);
+      const pdfWithOptions = options.pdf.find(pdf => pdf.route === route);
+
       if (options.saveAs === "html") {
         await saveAsHtml({ page, filePath, options, route });
       } else if (options.saveAs === "png") {
         await saveAsPng({ page, filePath, options, route });
+      }
+
+      if (options.pdf.includes(route)) {
+        await saveAsPdf({ page, route, destinationDir });
+      } else if (pdfWithOptions) {
+        await saveAsPdf({
+          page,
+          route: pdfWithOptions.route,
+          destinationDir,
+          options: pdfWithOptions.options || {}
+        });
       }
     },
     onEnd: () => {
