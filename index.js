@@ -23,6 +23,7 @@ const defaultOptions = {
   concurrency: 4,
   include: ["/"],
   exclude: [],
+  pdf: [],
   sitemap: false,
   userAgent: "ReactSnap",
   // 4 params below will be refactored to one: `puppeteer: {}`
@@ -408,15 +409,15 @@ const fixFormFields = ({ page }) => {
         element.removeAttribute("checked");
       }
     });
-    Array.from(
-      document.querySelectorAll("[type=checkbox]")
-    ).forEach(element => {
-      if (element.checked) {
-        element.setAttribute("checked", "checked");
-      } else {
-        element.removeAttribute("checked");
+    Array.from(document.querySelectorAll("[type=checkbox]")).forEach(
+      element => {
+        if (element.checked) {
+          element.setAttribute("checked", "checked");
+        } else {
+          element.removeAttribute("checked");
+        }
       }
-    });
+    );
     Array.from(document.querySelectorAll("option")).forEach(element => {
       if (element.selected) {
         element.setAttribute("selected", "selected");
@@ -460,18 +461,32 @@ const saveAsPng = ({ page, filePath, options, route }) => {
   return page.screenshot({ path: screenshotPath });
 };
 
+const saveAsPdf = async ({ page, route, destinationDir, options: customOptions }) => {
+  const defaultOptions = {
+    printBackground: true,
+    path: `${destinationDir}${route}.pdf`,
+    format: "A4"
+  };
+  const options = Object.assign({}, defaultOptions, customOptions);
+  await page.pdf(options);
+};
+
 const buildSitemap = routes => {
-  const domain = homepage.replace(/\/$/, '')
+  const domain = homepage.replace(/\/$/, "");
   return `
     <?xml version="1.0" encoding="UTF-8"?>
     <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-      ${routes.map(route => `
+      ${routes
+        .map(
+          route => `
         <url>
           <loc>${domain + route}</loc>
-          <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+          <lastmod>${new Date().toISOString().split("T")[0]}</lastmod>
           <priority>0.5</priority>
         </url>
-      `).join(' ')}
+      `
+        )
+        .join(" ")}
     </urlset>
   `;
 };
@@ -521,7 +536,7 @@ const run = async userOptions => {
   const ajaxCache = {};
   const { http2PushManifest, sitemap } = options;
   const http2PushManifestItems = {};
-  const sitemapItems = []
+  const sitemapItems = [];
 
   await crawl({
     options,
@@ -535,7 +550,7 @@ const run = async userOptions => {
         preconnectThirdParty
       } = options;
 
-      if (!route.includes("/404.html")) sitemapItems.push(route)
+      if (!route.includes("/404.html")) sitemapItems.push(route);
 
       if (
         preloadImages ||
@@ -543,18 +558,17 @@ const run = async userOptions => {
         preconnectThirdParty ||
         http2PushManifest
       ) {
-        const {
-          ajaxCache: ac,
-          http2PushManifestItems: hpm
-        } = preloadResources({
-          page,
-          basePath,
-          preloadImages,
-          cacheAjaxRequests,
-          preconnectThirdParty,
-          http2PushManifest,
-          ignoreForPreload: options.ignoreForPreload
-        });
+        const { ajaxCache: ac, http2PushManifestItems: hpm } = preloadResources(
+          {
+            page,
+            basePath,
+            preloadImages,
+            cacheAjaxRequests,
+            preconnectThirdParty,
+            http2PushManifest,
+            ignoreForPreload: options.ignoreForPreload
+          }
+        );
         ajaxCache[route] = ac;
         http2PushManifestItems[route] = hpm;
       }
@@ -647,32 +661,46 @@ const run = async userOptions => {
 
       const routePath = route.replace(publicPath, "");
       const filePath = path.join(destinationDir, routePath);
+      const pdfWithOptions = options.pdf.find(pdf => (pdf.route === route))
+
       if (options.saveAs === "html") {
         await saveAsHtml({ page, filePath, options, route });
       } else if (options.saveAs === "png") {
         await saveAsPng({ page, filePath, options, route });
       }
+
+      if (options.pdf.includes(route)) {
+        await saveAsPdf({ page, route, destinationDir });
+      } else if (pdfWithOptions) {
+        await saveAsPdf({
+          page,
+          route: pdfWithOptions.route,
+          destinationDir,
+          options: pdfWithOptions.options || {}
+        });
+      }
     },
     onEnd: () => {
       if (server) server.close();
       if (http2PushManifest) {
-        const manifest = Object.keys(
-          http2PushManifestItems
-        ).reduce((accumulator, key) => {
-          if (http2PushManifestItems[key].length !== 0)
-            accumulator.push({
-              source: key,
-              headers: [
-                {
-                  key: "Link",
-                  value: http2PushManifestItems[key]
-                    .map(x => `<${x.link}>;rel=preload;as=${x.as}`)
-                    .join(",")
-                }
-              ]
-            });
-          return accumulator;
-        }, []);
+        const manifest = Object.keys(http2PushManifestItems).reduce(
+          (accumulator, key) => {
+            if (http2PushManifestItems[key].length !== 0)
+              accumulator.push({
+                source: key,
+                headers: [
+                  {
+                    key: "Link",
+                    value: http2PushManifestItems[key]
+                      .map(x => `<${x.link}>;rel=preload;as=${x.as}`)
+                      .join(",")
+                  }
+                ]
+              });
+            return accumulator;
+          },
+          []
+        );
         fs.writeFileSync(
           `${destinationDir}/http2-push-manifest.json`,
           JSON.stringify(manifest)
@@ -680,7 +708,9 @@ const run = async userOptions => {
       }
       if (sitemap) {
         if (!homepage) {
-          console.log('⚠️   To generate a sitemap.xml a domain is required, add homepage to package.json');
+          console.log(
+            "⚠️   To generate a sitemap.xml a domain is required, add homepage to package.json"
+          );
           return;
         }
 
@@ -688,9 +718,9 @@ const run = async userOptions => {
 
         fs.writeFileSync(
           `${destinationDir}/sitemap.xml`,
-          xml.replace(/^\s+/gm, '')
+          xml.replace(/^\s+/gm, "")
         );
-        console.log('Sitemap generated!');
+        console.log("Sitemap generated!");
       }
     }
   });
