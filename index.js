@@ -548,10 +548,16 @@ const run = async userOptions => {
       const {
         preloadImages,
         cacheAjaxRequests,
-        preconnectThirdParty
+        preconnectThirdParty,
+        sitemap
       } = options;
 
-      if (!route.endsWith("/404.html")) sitemapItems.push(route)
+      if (
+        !route.endsWith("/404.html") &&
+        !(sitemap.exclude && sitemap.exclude.includes(route))
+      ) {
+        sitemapItems.push(route)
+      }
 
       if (
         preloadImages ||
@@ -707,7 +713,7 @@ const run = async userOptions => {
           JSON.stringify(manifest)
         );
       }
-      if (sitemap) {
+      if (sitemap || sitemap.enabled) {
         if (!options.homepage) {
           console.log('⚠️   To generate a sitemap.xml a domain is required, add homepage to package.json');
           return;
