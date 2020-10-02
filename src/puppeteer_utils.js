@@ -180,7 +180,7 @@ const crawl = async opt => {
         });
         beforeFetch && beforeFetch({ page, route });
         await page.setUserAgent(options.userAgent);
-        await page.goto(pageUrl, { waitUntil: "networkidle0" });
+        await page.goto(pageUrl, { waitUntil: options.waitUntil });
         if (options.waitFor) await page.waitFor(options.waitFor);
         if (options.crawl) {
           const links = await getLinks({ page });

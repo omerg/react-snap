@@ -66,6 +66,7 @@ const defaultOptions = {
   saveAs: "html",
   crawl: true,
   waitFor: false,
+  waitUntil: "networkidle0",
   externalServer: false,
   //# even more workarounds
   removeStyleTags: false,
